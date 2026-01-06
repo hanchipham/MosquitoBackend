@@ -240,19 +240,3 @@ Alert dibuat hanya jika:
 - Belum ada alert yang belum resolved
 
 Alert di-resolve otomatis saat `total_jentik == 0`
-
-## Production Deployment
-
-Untuk production (Railway/Heroku/dll):
-
-1. Set semua environment variables
-2. Gunakan production database (bukan localhost)
-3. Set `API_RELOAD=False`
-4. Gunakan production-grade WSGI server
-5. Setup proper logging
-6. Enable HTTPS
-7. Setup monitoring
-
-## License
-
-Private project untuk Mini Project IoT

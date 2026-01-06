@@ -454,16 +454,3 @@ docker run -p 8080:8080 --env-file .env mosquito-backend
 Untuk pertanyaan atau issue, silakan buka issue di repository atau contact developer.
 
 ---
-
-## Changelog
-
-### v1.0.0 (2026-01-02)
-
-- ✅ Initial release
-- ✅ Upload image endpoint
-- ✅ Roboflow workflow integration
-- ✅ Device authentication
-- ✅ Background inference processing
-- ✅ Blynk integration (optional)
-- ✅ Alert system (AMAN/BAHAYA)
-- ✅ Timezone support (WIB/UTC/etc)
