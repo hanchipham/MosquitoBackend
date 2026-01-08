@@ -103,5 +103,21 @@ CREATE TABLE IF NOT EXISTS alerts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- Create simplified device_controls table
+-- ============================================================
+CREATE TABLE device_controls (
+    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    device_id INT UNIQUE NOT NULL,
+    device_code VARCHAR(50) UNIQUE NOT NULL,
+    control_command ENUM('ACTIVATE', 'SLEEP', 'ACTIVATE_SERVO', 'STOP_SERVO') NOT NULL,
+    status ENUM('PENDING', 'EXECUTED', 'FAILED') NOT NULL DEFAULT 'PENDING',
+    message TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+    FOREIGN KEY (device_code) REFERENCES devices(device_code) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- Selesai
 -- ============================================================

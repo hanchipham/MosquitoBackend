@@ -1,258 +1,210 @@
 # IoT Larva Detection System - Backend
 
-Backend FastAPI untuk sistem deteksi jentik nyamuk menggunakan ESP32-CAM.
+**Backend Service untuk Sistem Deteksi Jentik Nyamuk Berbasis ESP32-CAM**
 
-## Struktur Project
+Repository ini berisi source code backend yang dibangun menggunakan **FastAPI**. Sistem ini berfungsi menerima citra dari perangkat IoT, melakukan preprocessing, menjalankan inferensi AI (via Roboflow), serta mengelola logika kontrol (Decision Engine) untuk menjaga lingkungan bebas jentik.
 
-```
+## Fitur Utama
+
+* **High-Performance API:** Dibangun di atas FastAPI dengan dukungan *asynchronous* untuk respon cepat.
+* **Background Processing:** Proses inferensi AI dan update status dilakukan di *background* (`BackgroundTasks`), memungkinkan ESP32 segera kembali ke mode *Deep Sleep* setelah upload.
+* **Secure Device Authentication:** Menggunakan HTTP Basic Auth dimana setiap device memiliki kredensial unik.
+* **Smart Decision Engine:** Menggabungkan hasil deteksi AI dengan logika bisnis untuk menentukan status `AMAN` atau `BAHAYA`.
+* **Manual & Auto Control:** Mendukung kontrol otomatis berdasarkan hasil deteksi, serta *manual override* via API untuk mengendalikan servo/pompa.
+* **IoT Polling Mechanism:** Mekanisme polling efisien untuk sinkronisasi perintah antara server dan perangkat IoT.
+* **Integrasi Pihak Ketiga:** Dukungan opsional untuk **Roboflow** (Inference) dan **Blynk** (Monitoring/Dashboard).
+* **Automated Storage & DB:** Pembuatan struktur folder dan tabel database otomatis saat startup.
+
+## 📂 Struktur Repositori
+
+```text
 MosquitoBackend/
 ├── app/
-│   ├── api/
-│   │   └── endpoints.py          # API endpoints
-│   ├── models/
-│   │   ├── device.py             # Device & DeviceAuth models
-│   │   ├── image.py              # Image model
-│   │   ├── inference.py          # InferenceResult model
-│   │   └── alert.py              # Alert model
-│   ├── schemas/
-│   │   └── schemas.py            # Pydantic schemas
-│   ├── services/
-│   │   ├── roboflow_service.py   # Roboflow integration
-│   │   ├── blynk_service.py      # Blynk integration
-│   │   └── decision_engine.py    # Decision logic
-│   ├── utils/
-│   │   └── image_utils.py        # Image processing utilities
-│   ├── auth.py                   # Authentication
-│   ├── config.py                 # Configuration
-│   └── database.py               # Database setup
-├── storage/                       # Image storage (auto-created)
-├── main.py                        # FastAPI application
-├── register_device.py             # Script registrasi device
-├── requirements.txt               # Python dependencies
-├── .env.example                   # Environment variables template
-└── README.md                      # Dokumentasi
+│   ├── api/                 # Definisi Endpoint (Routes)
+│   ├── models/              # SQLAlchemy ORM Models (Device, Image, Inference, Alert)
+│   ├── schemas/             # Pydantic Schemas (Request/Response Validation)
+│   ├── services/            # Logic Layer (Roboflow, Blynk, Decision Engine, Device Control)
+│   ├── utils/               # Utilities (Image processing, helpers)
+│   ├── auth.py              # Autentikasi HTTP Basic
+│   ├── config.py            # Manajemen konfigurasi (.env)
+│   └── database.py          # Konfigurasi Database Session
+├── storage/                 # Penyimpanan gambar (Auto-generated)
+│   ├── original/
+│   └── preprocessed/
+├── main.py                  # Entry point aplikasi
+├── register_device.py       # Script utilitas untuk pendaftaran device
+├── requirements.txt         # Daftar dependensi Python
+├── .env.example             # Template variabel lingkungan
+└── README.md                # Dokumentasi proyek
+
 ```
 
-## Setup
+## Panduan Instalasi (Quick Start)
 
-### 1. Install Dependencies
+### 1. Persiapan Lingkungan
+
+Pastikan Python 3.9+ dan MySQL server telah terinstall.
 
 ```bash
+# Clone repository (jika belum)
+git clone https://github.com/username/MosquitoBackend.git
+cd MosquitoBackend
+
+# Buat virtual environment (Disarankan)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# atau
+venv\Scripts\activate     # Windows
+
+# Install dependensi
 pip install -r requirements.txt
+
 ```
 
-### 2. Setup Environment Variables
+### 2. Konfigurasi Database & Environment
 
-Copy `.env.example` ke `.env` dan isi dengan konfigurasi Anda:
+Salin file contoh konfigurasi:
 
 ```bash
 cp .env.example .env
+
 ```
 
-Edit `.env`:
+Sesuaikan variabel di dalam `.env` dengan kredensial Anda:
 
-- `DATABASE_URL`: Connection string MySQL Anda
-- `ROBOFLOW_API_KEY`: API key dari Roboflow
-- `ROBOFLOW_MODEL_ID`: Model ID dari Roboflow
-- `BLYNK_AUTH_TOKEN`: Auth token dari Blynk
-- `SECRET_KEY`: Secret key untuk security
+| Variabel | Deskripsi | Wajib? |
+| --- | --- | --- |
+| `DATABASE_URL` | Koneksi MySQL (`mysql+pymysql://user:pass@host/db`) | **Ya** |
+| `SECRET_KEY` | Kunci acak untuk keamanan internal | **Ya** |
+| `ROBOFLOW_API_KEY` | API Key Roboflow untuk inferensi | Opsional* |
+| `ROBOFLOW_WORKFLOW_ID` | ID Workflow Roboflow | Opsional* |
+| `BLYNK_AUTH_TOKEN` | Token Auth Blynk untuk notifikasi | Opsional |
+| `TIMEZONE` | Zona waktu server (misal: `Asia/Jakarta`) | Tidak |
 
-### 3. Setup Database
+*> Catatan: Jika Roboflow tidak dikonfigurasi, sistem tetap berjalan namun status inferensi akan gagal.*
 
-Pastikan MySQL sudah running dan database sudah dibuat:
+### 3. Registrasi Perangkat (Device Onboarding)
 
-```sql
-CREATE DATABASE mosquito_db;
-```
+Sebelum ESP32 dapat mengirim data, perangkat harus didaftarkan ke sistem untuk mendapatkan kredensial.
 
-Database tables akan otomatis dibuat saat aplikasi pertama kali dijalankan.
-
-### 4. Register Device
-
-Sebelum ESP32 bisa upload, device harus didaftarkan terlebih dahulu:
-
-```bash
-python register_device.py ESP32_TOREN_01 password123 "Toren Depan" "ESP32-CAM di toren depan"
-```
-
-Atau jalankan interactive mode:
+Jalankan script interaktif:
 
 ```bash
 python register_device.py
+
 ```
 
-Simpan credentials (device_code dan password) untuk dikonfigurasi di ESP32.
-
-### 5. Run Server
+Atau via command line arguments:
 
 ```bash
-python main.py
+# Usage: python register_device.py [CODE] [PASSWORD] [LOCATION] [DESCRIPTION]
+python register_device.py ESP32_CAM_01 securePass123 "Toren Belakang" "Monitoring Toren Utama"
+
 ```
 
-Atau dengan uvicorn:
+### 4. Menjalankan Server
 
 ```bash
+# Mode development dengan auto-reload
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Atau menggunakan python wrapper
+python main.py
+
 ```
 
-Server akan berjalan di `http://localhost:8000`
+Aplikasi akan berjalan di `http://localhost:8000`. Dokumentasi interaktif tersedia di `/docs`.
 
-## API Endpoints
+---
 
-### 1. Upload Image (ESP32)
+## API Reference
 
-**Endpoint:** `POST /api/upload`
+Semua endpoint (kecuali `/health`) memerlukan header:
+`Authorization: Basic <base64(device_code:password)>`
 
-**Authentication:** HTTP Basic Auth
+### 1. Core Functionality
 
-- Username: `device_code`
-- Password: `device_password`
+#### `POST /api/upload`
 
-**Request:**
+Menerima gambar dari ESP32.
 
-- `image`: File (multipart/form-data)
-- `captured_at`: String (ISO datetime, optional)
-
-**Response:**
+* **Flow:** Simpan gambar → Response `SLEEP` ke ESP32 → Trigger Background Inference.
+* **Body:** `multipart/form-data` (`image`, `captured_at`).
+* **Response:**
 
 ```json
 {
   "success": true,
-  "message": "Image uploaded successfully, processing in background",
   "action": "SLEEP",
   "status": "PROCESSING",
-  "device_code": "ESP32_TOREN_01",
-  "total_jentik": 0,
-  "total_objects": 0
+  "message": "Image uploaded, processing in background"
 }
+
 ```
 
-Action yang mungkin:
+#### `GET /api/device/{device_code}/control`
 
-- `ACTIVATE`: ESP32 harus mengaktifkan servo/pompa
-- `SLEEP`: ESP32 masuk deep sleep
+Endpoint polling untuk IoT. Mengecek apakah ada perintah manual atau aksi otomatis yang harus dijalankan.
 
-### 2. Device Info
+* **Response:**
+* `mode`: `MANUAL` atau `AUTO`.
+* `command`: `ACTIVATE_SERVO`, `STOP_SERVO`, atau `NO_OP`.
 
-**Endpoint:** `GET /api/device/info`
+#### `POST /api/device/{device_code}/control/executed`
 
-**Authentication:** HTTP Basic Auth
+Callback dari IoT untuk memberitahu server bahwa perintah fisik telah berhasil dilakukan.
 
-**Response:**
+### 2. Manual Control (User Dashboard)
 
-```json
-{
-  "id": "uuid",
-  "device_code": "ESP32_TOREN_01",
-  "location": "Toren Depan",
-  "description": "ESP32-CAM di toren depan",
-  "is_active": true,
-  "created_at": "2025-01-02T10:00:00"
-}
-```
+* **`POST /api/device/{device_code}/activate_servo`**: Memaksa servo aktif (Manual Override).
+* **`POST /api/device/{device_code}/stop_servo`**: Memaksa servo berhenti.
+* **`GET /api/device/{device_code}/control/status`**: Melihat status kontrol terakhir.
 
-### 3. Health Check
+### 3. Utility
 
-**Endpoint:** `GET /api/health`
+* **`GET /api/device/info`**: Mendapatkan metadata device yang sedang login.
+* **`GET /api/health`**: Cek status server (Tanpa Auth).
 
-**Authentication:** None
+---
 
-**Response:**
+## Alur Kerja Sistem (System Flow)
 
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-01-02T10:00:00"
-}
-```
+1. **Capture & Upload:** ESP32 mengambil foto dan mengirim ke `/api/upload`.
+2. **Immediate Response:** Server menyimpan gambar original & preprocessed, lalu **segera** merespon dengan `action: SLEEP` agar hemat daya.
+3. **Background Task:**
 
-## Flow Sistem
+* Server mengirim gambar ke Roboflow.
+* Hasil inferensi (jumlah jentik) disimpan ke database.
+* **Decision Engine** mengevaluasi hasil:
+* Jika `jentik > 0`: Set status `BAHAYA`, buat Alert, siapkan command `ACTIVATE_SERVO` (jika mode Auto).
+* Jika `jentik == 0`: Set status `AMAN`, resolve Alert, siapkan command `STOP_SERVO`.
 
-Sesuai dengan `rancangan.md`:
+* Update status ke Blynk (jika dikonfigurasi).
 
-1. **ESP32** capture image dan upload ke `/api/upload`
-2. **Backend** menerima, authenticate device
-3. **Backend** save original image ke filesystem
-4. **Backend** save image metadata ke database
-5. **Backend** preprocessing image (resize, enhance)
-6. **Backend** response cepat ke ESP32 (action: SLEEP)
-7. **Backend** (background) kirim image ke Roboflow
-8. **Backend** (background) parse hasil inference
-9. **Backend** (background) simpan hasil ke database
-10. **Backend** (background) decision engine (AMAN/BAHAYA)
-11. **Backend** (background) handle alerts
-12. **Backend** (background) update Blynk dashboard
-13. **ESP32** terima response, execute action
+1. **Action Execution:**
 
-## Testing dengan Postman
+* Pada siklus bangun berikutnya, ESP32 memanggil `/control`.
+* Server memberikan perintah tertunda (hasil decision engine atau manual override).
+* ESP32 mengeksekusi perintah dan melapor balik ke `/control/executed`.
 
-### Setup Basic Auth
+---
 
-1. Di Postman, pilih tab **Authorization**
-2. Type: **Basic Auth**
-3. Username: `ESP32_TOREN_01` (device_code Anda)
-4. Password: `password123` (password device Anda)
+## 🛠 Testing & Development
 
-### Upload Image
+Repository ini menyertakan script untuk pengujian tanpa perangkat fisik:
 
-1. Method: **POST**
-2. URL: `http://localhost:8000/api/upload`
-3. Body: **form-data**
-   - Key: `image`, Type: **File**, Value: pilih file image
-   - Key: `captured_at`, Type: **Text**, Value: `2025-01-02T10:00:00` (optional)
-4. Send
+* `test_upload.py`: Mengirim file gambar dummy untuk menguji endpoint upload dan background processing.
+* `test_manual_control.py`: Simulasi alur kontrol manual (User request -> Pending -> IoT Polling -> Executed).
 
-## Database Schema
+Untuk testing API secara visual, gunakan **Swagger UI** di `http://localhost:8000/docs`.
 
-Sesuai dengan `rancangan.md`:
+## Model Data
 
-- **devices**: Device registry
-- **device_auth**: Device credentials
-- **images**: Image storage metadata
-- **inference_results**: Hasil inference dari Roboflow
-- **alerts**: Alert notifications
+Sistem menggunakan tabel berikut (dibuat otomatis):
 
-## Development Notes
-
-### Background Processing
-
-Inference dijalankan sebagai background task agar:
-
-- ESP32 tidak perlu menunggu lama
-- Response cepat diterima
-- Sistem tetap responsive meski ada 10+ device concurrent
-
-### Error Handling
-
-Jika Roboflow error:
-
-- Image tetap disimpan
-- Inference result status = `failed`
-- Error message disimpan ke database
-- Blynk status = "INFERENCE ERROR"
-- ESP32 default action = SLEEP
-
-### Alert Logic
-
-Alert dibuat hanya jika:
-
-- `total_jentik > 0`
-- Belum ada alert yang belum resolved
-
-Alert di-resolve otomatis saat `total_jentik == 0`
-
-## Production Deployment
-
-Untuk production (Railway/Heroku/dll):
-
-1. Set semua environment variables
-2. Gunakan production database (bukan localhost)
-3. Set `API_RELOAD=False`
-4. Gunakan production-grade WSGI server
-5. Setup proper logging
-6. Enable HTTPS
-7. Setup monitoring
-
-## License
-
-Private project untuk Mini Project IoT
+* `devices`: Registry perangkat.
+* `device_auth`: Kredensial keamanan.
+* `images`: Metadata file gambar.
+* `inference_results`: Raw JSON dari Roboflow & statistik deteksi.
+* `alerts`: Log peringatan bahaya.
+* `device_controls`: State manajemen untuk perintah servo.

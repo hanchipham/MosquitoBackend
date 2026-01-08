@@ -30,4 +30,5 @@ def init_db():
     import app.models.image
     import app.models.inference
     import app.models.alert
+    import app.models.manual_control
     Base.metadata.create_all(bind=engine)

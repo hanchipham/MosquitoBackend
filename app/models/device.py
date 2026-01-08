@@ -27,6 +27,7 @@ class Device(Base):
     images = relationship("Image", back_populates="device")
     inference_results = relationship("InferenceResult", back_populates="device")
     alerts = relationship("Alert", back_populates="device")
+    control = relationship("DeviceControl", back_populates="device", uselist=False)
 
 
 class DeviceAuth(Base):

@@ -13,6 +13,7 @@ from app.schemas.schemas import UploadResponse, DeviceResponse
 from app.services.roboflow_service import roboflow_service
 from app.services.blynk_service import blynk_service
 from app.services.decision_engine import decision_engine
+from app.services.manual_control_service import DeviceControlService
 from app.utils.image_utils import (
     save_image, 
     preprocess_image, 
@@ -226,3 +227,300 @@ async def health_check():
         "status": "healthy",
         "timestamp": get_current_time().isoformat()
     }
+
+
+# ==================== DEVICE CONTROL ENDPOINTS (ENDPOINT-BASED COMMANDS) ====================
+
+@router.get("/device/{device_code}/control")
+async def get_device_control(
+    device_code: str,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    IoT Polling Endpoint - Get control command
+    
+    Returns current control status or automatic action from inference.
+    Manual control (status=PENDING) overrides automatic.
+    
+    Response:
+    {
+        "mode": "MANUAL" | "AUTO",
+        "command": "ACTIVATE_SERVO" | "STOP_SERVO",
+        "status": "PENDING" | "EXECUTED" | "AUTO",
+        "message": "...",
+        "timestamp": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get latest inference result to determine automatic action
+    latest_inference = db.query(InferenceResult).filter(
+        InferenceResult.device_code == device_code
+    ).order_by(InferenceResult.inference_at.desc()).first()
+    
+    automatic_action = "STOP_SERVO"  # Default safe state
+    if latest_inference and latest_inference.status == "success":
+        status = decision_engine.determine_status(latest_inference.total_jentik)
+        action = decision_engine.determine_action(status)
+        # Map to servo commands
+        automatic_action = "ACTIVATE_SERVO" if action == "ACTIVATE" else "STOP_SERVO"
+    
+    # Get control response (manual overrides if status=PENDING)
+    response = DeviceControlService.get_control_response(
+        db=db,
+        device_code=device_code,
+        automatic_action=automatic_action
+    )
+    
+    return response
+
+
+@router.post("/device/{device_code}/activate_servo")
+async def activate_servo(
+    device_code: str,
+    message: Optional[str] = Form(None),
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    Activate Servo - Endpoint IS the command
+    
+    Calling this endpoint activates the servo.
+    No control_command field needed - the endpoint itself is the command.
+    
+    Response:
+    {
+        "success": true,
+        "device_code": "test",
+        "command": "ACTIVATE_SERVO",
+        "status": "PENDING",
+        "message": "...",
+        "timestamp": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        # Set control - endpoint name IS the command
+        control = DeviceControlService.set_control(
+            db=db,
+            device_code=device_code,
+            control_command="ACTIVATE_SERVO",
+            message=message or "Servo activation requested"
+        )
+        
+        return {
+            "success": True,
+            "device_code": device_code,
+            "command": "ACTIVATE_SERVO",
+            "status": control.status,
+            "message": control.message,
+            "timestamp": control.updated_at.isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to activate servo: {str(e)}")
+
+
+@router.post("/device/{device_code}/stop_servo")
+async def stop_servo(
+    device_code: str,
+    message: Optional[str] = Form(None),
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    Stop Servo - Endpoint IS the command
+    
+    Calling this endpoint stops the servo.
+    No control_command field needed - the endpoint itself is the command.
+    
+    Response:
+    {
+        "success": true,
+        "device_code": "test",
+        "command": "STOP_SERVO",
+        "status": "PENDING",
+        "message": "...",
+        "timestamp": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        # Set control - endpoint name IS the command
+        control = DeviceControlService.set_control(
+            db=db,
+            device_code=device_code,
+            control_command="STOP_SERVO",
+            message=message or "Servo stop requested"
+        )
+        
+        return {
+            "success": True,
+            "device_code": device_code,
+            "command": "STOP_SERVO",
+            "status": control.status,
+            "message": control.message,
+            "timestamp": control.updated_at.isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop servo: {str(e)}")
+
+
+@router.post("/device/{device_code}/control/executed")
+async def control_executed(
+    device_code: str,
+    message: Optional[str] = Form(None),
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    Mark Control as Executed - Endpoint IS the status
+    
+    IoT calls this endpoint after successfully executing command.
+    No status field needed - the endpoint itself indicates EXECUTED.
+    
+    Response:
+    {
+        "success": true,
+        "device_code": "test",
+        "command": "ACTIVATE_SERVO",
+        "status": "EXECUTED",
+        "message": "...",
+        "timestamp": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Update status - endpoint name IS the status
+    control = DeviceControlService.update_status(
+        db=db,
+        device_code=device_code,
+        status="EXECUTED",
+        message=message or "Command executed successfully"
+    )
+    
+    if not control:
+        raise HTTPException(
+            status_code=404, 
+            detail="No control found for this device"
+        )
+    
+    return {
+        "success": True,
+        "device_code": device_code,
+        "command": control.control_command,
+        "status": "EXECUTED",
+        "message": control.message,
+        "timestamp": control.updated_at.isoformat()
+    }
+
+
+@router.post("/device/{device_code}/control/failed")
+async def control_failed(
+    device_code: str,
+    message: Optional[str] = Form(None),
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    Mark Control as Failed - Endpoint IS the status
+    
+    IoT calls this endpoint if command execution failed.
+    No status field needed - the endpoint itself indicates FAILED.
+    
+    Response:
+    {
+        "success": true,
+        "device_code": "test",
+        "command": "ACTIVATE_SERVO",
+        "status": "FAILED",
+        "message": "...",
+        "timestamp": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Update status - endpoint name IS the status
+    control = DeviceControlService.update_status(
+        db=db,
+        device_code=device_code,
+        status="FAILED",
+        message=message or "Command execution failed"
+    )
+    
+    if not control:
+        raise HTTPException(
+            status_code=404, 
+            detail="No control found for this device"
+        )
+    
+    return {
+        "success": True,
+        "device_code": device_code,
+        "command": control.control_command,
+        "status": "FAILED",
+        "message": control.message,
+        "timestamp": control.updated_at.isoformat()
+    }
+
+
+@router.get("/device/{device_code}/control/status")
+async def get_control_status(
+    device_code: str,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db)
+):
+    """
+    Get Current Control Status
+    
+    Returns current control configuration for device.
+    
+    Response:
+    {
+        "device_code": "test",
+        "command": "ACTIVATE_SERVO",
+        "status": "PENDING",
+        "message": "...",
+        "created_at": "2026-01-06T...",
+        "updated_at": "2026-01-06T..."
+    }
+    """
+    # Verify device matches auth
+    if current_device.device_code != device_code:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    control = DeviceControlService.get_control(db, device_code)
+    
+    if not control:
+        return {
+            "device_code": device_code,
+            "command": None,
+            "status": "NOT_SET",
+            "message": "No control configured for this device",
+            "created_at": None,
+            "updated_at": None
+        }
+    
+    return {
+        "device_code": control.device_code,
+        "command": control.control_command,
+        "status": control.status,
+        "message": control.message,
+        "created_at": control.created_at.isoformat(),
+        "updated_at": control.updated_at.isoformat()
+    }
+
