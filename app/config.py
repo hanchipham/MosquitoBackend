@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     API_RELOAD: bool = True
     
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str = "dev-secret-key-change-in-production"
     
     # Timezone (e.g., 'Asia/Jakarta' for WIB, 'UTC', 'America/New_York')
     TIMEZONE: str = "UTC"
