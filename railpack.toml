@@ -1,0 +1,15 @@
+[build]
+# Specify Python version compatible with dependencies
+python = "3.11"
+
+[build.install]
+# Install command
+cmd = "pip install -r requirements.txt"
+
+[deploy]
+# Start command - same as in Dockerfile
+cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"
+
+[env]
+# Optional: Set environment variables if needed
+# PYTHONUNBUFFERED = "1"
