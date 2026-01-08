@@ -11,4 +11,4 @@ passlib==1.7.4
 httpx==0.26.0
 pydantic==2.5.3
 pydantic-settings==2.1.0
-inference-sdk>=0.63.4
+inference-sdk>=0.63.1
