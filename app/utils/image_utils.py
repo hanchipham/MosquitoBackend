@@ -34,10 +34,10 @@ def save_image(image_data: bytes, file_path: str) -> Tuple[int, int, str]:
     return width, height, checksum
 
 
-def preprocess_image(input_path: str, output_path: str) -> Tuple[int, int, str]:
+def preprocess_image(input_path: str, output_path: str) -> Tuple[int, int, str, bytes]:
     """
     Preprocess image (resize, enhance, etc.)
-    Returns: (width, height, checksum)
+    Returns: (width, height, checksum, image_data)
     """
     # Ensure output directory exists
     directory = os.path.dirname(output_path)
@@ -59,11 +59,14 @@ def preprocess_image(input_path: str, output_path: str) -> Tuple[int, int, str]:
         
         width, height = img.size
     
-    # Calculate checksum
+    # Read image data for blob storage
     with open(output_path, 'rb') as f:
-        checksum = hashlib.sha256(f.read()).hexdigest()
+        image_data = f.read()
     
-    return width, height, checksum
+    # Calculate checksum
+    checksum = hashlib.sha256(image_data).hexdigest()
+    
+    return width, height, checksum, image_data
 
 
 def generate_image_filename(device_code: str, image_type: str = "original") -> str:
