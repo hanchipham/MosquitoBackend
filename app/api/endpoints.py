@@ -157,6 +157,7 @@ async def upload_image(
             device_code=current_device.device_code,
             image_type="original",
             image_path=original_path,
+            image_blob=image_data,
             width=width,
             height=height,
             checksum=checksum,
@@ -167,7 +168,7 @@ async def upload_image(
         db.refresh(original_image)
         
         # Preprocess image
-        prep_width, prep_height, prep_checksum = preprocess_image(
+        prep_width, prep_height, prep_checksum, prep_data = preprocess_image(
             original_path, 
             preprocessed_path
         )
@@ -178,6 +179,7 @@ async def upload_image(
             device_code=current_device.device_code,
             image_type="preprocessed",
             image_path=preprocessed_path,
+            image_blob=prep_data,
             width=prep_width,
             height=prep_height,
             checksum=prep_checksum,

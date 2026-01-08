@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS images (
     device_code VARCHAR(255) NOT NULL,
     image_type VARCHAR(50),
     image_path VARCHAR(500),
+    image_blob LONGBLOB,
     width INT,
     height INT,
     checksum VARCHAR(64),

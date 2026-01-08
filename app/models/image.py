@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
-from sqlalchemy.dialects.mysql import CHAR
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, LargeBinary
+from sqlalchemy.dialects.mysql import CHAR, LONGBLOB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.database import Base
 from app.config import get_current_time
@@ -20,6 +20,7 @@ class Image(Base):
     device_code: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     image_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # original | preprocessed
     image_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    image_blob: Mapped[Optional[bytes]] = mapped_column(LONGBLOB, nullable=True)
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
