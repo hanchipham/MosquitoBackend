@@ -34,12 +34,10 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     
-    # Documentation Access (HTTP Basic Auth)
-    # Username untuk akses dokumentasi
-    DOCS_USERNAME: str = "admin"
-    # Password hash (bcrypt) - default: "admin123"
-    # Generate hash: from passlib.context import CryptContext; CryptContext(schemes=["bcrypt"]).hash("your_password")
-    DOCS_PASSWORD_HASH: str = "$2b$12$p6Whuy4.XW8mhd96fC8PXu2KT3u8wZCcQ3zFx1dguR0yXR5Rhvv1."
+    # Documentation Access (Simple API Key)
+    # Key untuk akses dokumentasi API (/docs, /redoc)
+    # Akses: http://localhost:8000/docs?key=mosquitoDocs
+    DOCS_API_KEY: str = "mosquitoDocs"
     
     # Timezone (e.g., 'Asia/Jakarta' for WIB, 'UTC', 'America/New_York')
     TIMEZONE: str = "Asia/Jakarta"

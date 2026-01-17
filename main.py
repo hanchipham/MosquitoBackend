@@ -5,7 +5,7 @@ from fastapi.openapi.utils import get_openapi
 from app.api.endpoints import router
 from app.database import init_db
 from app.config import settings
-from app.auth import verify_docs_credentials
+from app.auth import verify_docs_api_key
 import os
 
 # Initialize FastAPI app with docs disabled (will be protected manually)
@@ -54,13 +54,13 @@ async def root():
         "name": "IoT Larva Detection System API",
         "version": "1.0.0",
         "status": "running",
-        "docs": "/docs (requires authentication)"
+        "docs": "/docs?key=YOUR_API_KEY"
     }
 
 
 # Protected documentation endpoints
 @app.get("/openapi.json", include_in_schema=False)
-async def get_open_api_endpoint(username: str = Depends(verify_docs_credentials)):
+async def get_open_api_endpoint(api_key: str = Depends(verify_docs_api_key)):
     """Protected OpenAPI schema endpoint"""
     return get_openapi(
         title=app.title,
@@ -71,19 +71,19 @@ async def get_open_api_endpoint(username: str = Depends(verify_docs_credentials)
 
 
 @app.get("/docs", include_in_schema=False)
-async def get_documentation(username: str = Depends(verify_docs_credentials)):
+async def get_documentation(api_key: str = Depends(verify_docs_api_key)):
     """Protected Swagger UI documentation"""
     return get_swagger_ui_html(
-        openapi_url="/openapi.json",
+        openapi_url="/openapi.json?key=" + api_key,
         title=f"{app.title} - Swagger UI"
     )
 
 
 @app.get("/redoc", include_in_schema=False)
-async def get_redoc_documentation(username: str = Depends(verify_docs_credentials)):
+async def get_redoc_documentation(api_key: str = Depends(verify_docs_api_key)):
     """Protected ReDoc documentation"""
     return get_redoc_html(
-        openapi_url="/openapi.json",
+        openapi_url="/openapi.json?key=" + api_key,
         title=f"{app.title} - ReDoc"
     )
 

@@ -1,15 +1,15 @@
 import secrets
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import HTTPException, status, Depends, Query
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, APIKeyQuery
 from app.models.device import DeviceAuth, Device
 from app.database import get_db
 from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBasic()
-docs_security = HTTPBasic()
+docs_api_key = APIKeyQuery(name="key", auto_error=False)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -74,26 +74,21 @@ def get_current_device(
     return authenticate_device(credentials.username, credentials.password, db)
 
 
-def verify_docs_credentials(credentials: HTTPBasicCredentials = Depends(docs_security)):
+def verify_docs_api_key(api_key: str = Depends(docs_api_key)):
     """
     Dependency untuk autentikasi akses dokumentasi API
-    Menggunakan HTTP Basic Auth dengan bcrypt hash password
+    Menggunakan simple API key via query parameter
+    Akses: /docs?key=mosquitoDocs
     """
-    # Verify username
-    correct_username = secrets.compare_digest(credentials.username, settings.DOCS_USERNAME)
-    
-    # Verify password using bcrypt hash
-    correct_password = False
-    if correct_username:  # Only verify password if username is correct
-        try:
-            correct_password = pwd_context.verify(credentials.password, settings.DOCS_PASSWORD_HASH)
-        except Exception:
-            correct_password = False
-    
-    if not (correct_username and correct_password):
+    if api_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid documentation credentials",
-            headers={"WWW-Authenticate": "Basic"},
+            detail="API key required. Access: /docs?key=YOUR_KEY",
         )
-    return credentials.username
+    
+    if not secrets.compare_digest(api_key, settings.DOCS_API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+    return api_key
